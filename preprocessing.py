@@ -217,7 +217,6 @@ def main():
 
 
 if __name__ == "__main__":
-    # CURRENT_DIR = os.getcwd()  # TODO: check if this works on command line
-    CURRENT_DIR = "/home/sr2464/Desktop/cell2sentence-ft"
+    CURRENT_DIR = os.getcwd()
     DATA_PATH = os.path.join(CURRENT_DIR, "raw_data_subset.h5ad")
     main()
