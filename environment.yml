@@ -1,0 +1,31 @@
+name: c2s
+channels:
+  - conda-forge
+  - pytorch
+  - huggingface
+  - nvidia
+  - bioconda
+  - defaults
+dependencies:
+  - python >= 3.10
+  - pip
+  - conda-build
+  - numpy
+  - scipy
+  - pandas
+  - scikit-learn
+  - scanpy
+  - plotnine
+  - tqdm
+  - datasets
+  - transformers
+  - wandb
+  - pytorch
+  - torchvision
+  - pytorch-cuda=11.7
+  - python-igraph
+  - accelerate
+  - igraph
+  - jellyfish
+  - pip:
+    - gdown
