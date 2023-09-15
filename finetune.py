@@ -78,7 +78,7 @@ class CustomTrainingArguments:
         metadata={"help": "Number of evaluation steps before offloading to CPU."}
     )
     output_dir: str = field(
-        default='/home/dfl32/project/cell2sentence-dev/training_runs',
+        default='<OUTPUT_DIRECTORY>',
         metadata={"help": "Output directory for training runs."}
     )
     overwrite_output_dir: bool = field(
@@ -163,7 +163,7 @@ class CustomTrainingArguments:
         metadata={"help": "Number of training steps before logging, where steps is the number of gradient unpdates."}
     )
     datasets_paths: str = field(
-        default="/gpfs/gibbs/project/dijk/dfl32/cell2sentence-dev/datasets_paths/pbmc_arrow.json",
+        default="<PATH_TO_DATASET_PATHS_JSON>",
         metadata={"help": "Path to json file where datasets are located."}
     )
     wandb_logging: bool = field(
