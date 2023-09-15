@@ -1,7 +1,8 @@
 import random
 
+
 def construct_cell_type_template(cell_type):
-    vowels = {'a', 'e', 'i', 'o', 'u', 'A', 'E', 'I', 'O', 'U'}
+    vowels = {"a", "e", "i", "o", "u", "A", "E", "I", "O", "U"}
     if cell_type[0] in vowels:
         cell_type = f"n {cell_type}"
     else:
@@ -46,7 +47,7 @@ def construct_cell_type_template(cell_type):
         "Catalog the 100 initial genes for a{}, ordered by expression level from highest to lowest: ",
         "Identify the 100 leading genes in a{} based on expression levels: ",
         "Show the 100 primary genes for a{}, sorted by decreasing expression: ",
-        "Enumerate the 100 most abundantly expressed starting genes in a{}: "
+        "Enumerate the 100 most abundantly expressed starting genes in a{}: ",
     ]
 
     selected_template = random.choice(cell_type_templates)
@@ -55,8 +56,8 @@ def construct_cell_type_template(cell_type):
 
     return formatted_template
 
-def construct_prediction_template(genes):
 
+def construct_prediction_template(genes):
     initial_prompt_templates = [
         "Identify the cell type most likely associated with these 100 highly expressed genes listed in descending order.",
         "Determine the probable cell type for the following 100 genes with the highest expression levels.",
@@ -117,7 +118,7 @@ def construct_prediction_template(genes):
         "Indicate the probable cell type these 100 genes are commonly associated with.",
         "According to these 100 genes with highest expression, what cell type are they most likely from?",
         "Which cell type is these 100 genes with the highest expression levels most commonly found in?",
-        "Could you point out the likely cell type linked with these 100 genes sorted by decreasing expression?"
+        "Could you point out the likely cell type linked with these 100 genes sorted by decreasing expression?",
     ]
 
     prediction_templates = [
@@ -138,7 +139,7 @@ def construct_prediction_template(genes):
         "The cell type these genes most likely originate from is: ",
         "These genes are most frequently associated with the cell type: ",
         "From these genes, it can be inferred that the cell type is: ",
-        "The cell type best represented by these genes is: "
+        "The cell type best represented by these genes is: ",
     ]
 
     # build prompt
@@ -146,6 +147,8 @@ def construct_prediction_template(genes):
     selected_initial_template = random.choice(initial_prompt_templates)
     selected_prediction_template = random.choice(prediction_templates)
 
-    formatted_template = selected_initial_template + " " + genes + " " + selected_prediction_template
-    
+    formatted_template = (
+        selected_initial_template + " " + genes + " " + selected_prediction_template
+    )
+
     return formatted_template

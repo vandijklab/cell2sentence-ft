@@ -47,9 +47,18 @@ def xlm_prepare_outpath(csdata, outpath, species_tag, params=None):
     val_sentences = sentence_strings[val]
 
     os.makedirs(outpath, exist_ok=True)
-    np.save(os.path.join(outpath, "train_partition_indices.npy"), np.array(train, dtype=np.int64))
-    np.save(os.path.join(outpath, "val_partition_indices.npy"), np.array(val, dtype=np.int64))
-    np.save(os.path.join(outpath, "test_partition_indices.npy"), np.array(test, dtype=np.int64))
+    np.save(
+        os.path.join(outpath, "train_partition_indices.npy"),
+        np.array(train, dtype=np.int64),
+    )
+    np.save(
+        os.path.join(outpath, "val_partition_indices.npy"),
+        np.array(val, dtype=np.int64),
+    )
+    np.save(
+        os.path.join(outpath, "test_partition_indices.npy"),
+        np.array(test, dtype=np.int64),
+    )
 
     print("INFO: Writing Vocabulary File", file=sys.stderr)
     fn = "{}/vocab_{}.txt".format(outpath, species_tag)
