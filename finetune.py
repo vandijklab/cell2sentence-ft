@@ -178,10 +178,6 @@ class CustomTrainingArguments:
         default="debug",
         metadata={"help": "Log level to use."}
     )
-    global_dict_path: str = field(
-        default="/home/sr2464/palmer_scratch/CellLM_Datasets/CellxGene_Sentence_Compiled/global_vocab_list_493datasets.json",
-        metadata={"help": "Path for global dictionary used."}
-    )
     optim: str = field(
         default="adamw_torch",
         metadata={"help": "Optimizer to use. See Hugging Face options in TrainerArguments."}
@@ -369,10 +365,6 @@ def main():
         optim=training_args.optim,
         deepspeed=training_args.deepspeed
     )
-
-    with open(training_args.global_dict_path, "rb") as f:
-        global_dict = set(json.load(f))
-
 
     trainer = Trainer(
         model=model,

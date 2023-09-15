@@ -15,3 +15,35 @@ Cell2Sentence is a novel method for adapting large language models to single-cel
 2. Run preprocessing: `python preprocessing.py`
 
 3. Run `python create_cell_sentence_arrow_dataset.py`
+
+## Fine-tuning
+
+Once the arrow dataset is created, you can create a json file containing the paths of the train and validation datasets, for example:
+
+```
+{
+    'train': <PATH_TO_TRAINING_DATASET>,
+    'val': <PATH_TO_VALIDATION_DATASET>
+}
+```
+
+Then to train Hugging Face's GPT-2 small model using our fine-tuning script, run:
+
+```
+python finetune.py \
+    --output_dir <OUTPUT_DIRECTORY> \
+    --datasets_paths <PATH_TO_DATASET_PATHS_JSON> \
+    --model_name gpt2 \
+    --num_train_epochs 100 \
+    --fp16 True \
+    --dataloader_num_workers 2 \
+    --gradient_checkpointing True \
+    --gradient_accumulation_steps 4 \
+    --eval_accumulation_steps 5 \
+    --per_device_train_batch_size 16 \
+    --per_device_eval_batch_size 16 \
+    --logging_steps 100 \
+    --eval_steps 100 \
+    --eval_dataset_size 1000 \
+    --save_steps 500
+```
