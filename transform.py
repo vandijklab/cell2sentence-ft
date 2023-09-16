@@ -229,7 +229,7 @@ def main(data_filepath: Path, output_dir: Path):
     # make text files containing the cell sentences
     txt_output_dir = output_dir / "cell_sentences"
     txt_output_dir.mkdir(exist_ok=True, parents=True)
-    utils.xlm_prepare_outpath(csdata, output_dir, species_tag="human")
+    utils.xlm_prepare_outpath(csdata, txt_output_dir, species_tag="human")
     print(f"Done writing cell sentences to file.")
 
     # make arrow-formatted dataset compatible with HuggingFace's datasets

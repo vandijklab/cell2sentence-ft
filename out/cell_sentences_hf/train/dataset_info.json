@@ -1,0 +1,16 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "input_ids": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "cell_type": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
