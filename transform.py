@@ -227,13 +227,13 @@ def main(data_filepath: Path, output_dir: Path):
     csdata = utils.csdata_from_adata(adata)
 
     # make text files containing the cell sentences
-    txt_output_dir = utils.DATA_DIR / "cell_sentences"
+    txt_output_dir = output_dir / "cell_sentences"
     txt_output_dir.mkdir(exist_ok=True, parents=True)
     utils.xlm_prepare_outpath(csdata, output_dir, species_tag="human")
     print(f"Done writing cell sentences to file.")
 
     # make arrow-formatted dataset compatible with HuggingFace's datasets
-    hf_output_dir = utils.DATA_DIR / "cell_sentences_hf"
+    hf_output_dir = output_dir / "cell_sentences_hf"
     hf_output_dir.mkdir(exist_ok=True, parents=True)
     data_splits = ["train", "valid", "test"]
     data_files = {
@@ -273,7 +273,7 @@ if __name__ == "__main__":
         "--output_dir",
         type=Path,
         help="Output directory filepath.",
-        default=utils.DATA_DIR / "cell_sentences",
+        default=utils.DATA_DIR,
     )
     args = parser.parse_args()
 
