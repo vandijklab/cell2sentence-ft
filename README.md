@@ -1,56 +1,73 @@
 # Cell2Sentence
+[![Code License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/vandijklab/cell2sentence-ft/blob/main/LICENSE)
+[![Preprint License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC_BY--NC--ND_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-nd/4.0/)
+[![DOI:10.1101/2023.09.11.557287](http://img.shields.io/badge/DOI-10.1101/2023.09.11.557287-B31B1B.svg)](https://doi.org/10.1101/2023.09.11.557287)
+[![Python 3.9+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-310/)
 
 Cell2Sentence is a novel method for adapting large language models to single-cell transcriptomics. We transform single-cell RNA sequencing data into sequences of gene names ordered by expression level, termed "cell sentences". This repository provides scripts and examples for converting cells to cell sentences, fine-tuning language models, and converting outputs back to expression values.
 
-![Overview](https://github.com/vandijklab/cell2sentence-ft/blob/main/fig/Overview.png)
-
-
+![Overview](https://github.com/vandijklab/cell2sentence-ft/blob/main/assets/overview.png)
 
 ## Quickstart
 
-Create your `conda` python environment (note: you need to install `conda` or `miniconda`):
+Create your python environment with `conda` (note: you need to install `conda` or `miniconda`):
 ```bash
 conda env create -f environment.yml
 conda develop .
-``` 
+```
 
+Make sure to activate your conda environment with `conda activate c2s`.
 
-1. Download the data subset used in the example here:
-    - Domínguez Conde, C., et al. [Cross-tissue immune cell analysis reveals tissue-specific features in humans](https://drive.google.com/file/d/1PYUM59fKclw-aeN79oL5ghCkU4kn6XvN/view?usp=sharing)
-    - Place the data in the root of the data repository
+To get started with some sample data:
+1. Download a [subset](https://drive.google.com/file/d/1PYUM59fKclw-aeN79oL5ghCkU4kn6XvN/view?usp=sharing) of `1000` cells from [1] to the `data/` directory: `python download_example_data.py`
+2. Transform raw transcript counts into cell sentences: `python make_cell_sentences.py`
 
-2. Run preprocessing: `python preprocessing.py`
+*To transform your own data, place your `.h5ad` in the `data/` directory and run `python make_cell_sentences --data data/<your-filename> --output data/<your-output-path>`. The `--output` parameter lets you specify where to place the cell sentences.*
 
-3. Run `python create_cell_sentence_arrow_dataset.py`
+[1] C Domínguez Conde et al. “Cross-tissue immune cell analysis reveals tissue-specific features in humans”. In: Science 376.6594 (2022), eabl5197.
 
 ## Fine-tuning
+Running `make_cell_sentences.py` creates an arrow dataset of cell sentences in `data/cell_sentences/`.
 
-Once the arrow dataset is created, you can create a json file containing the paths of the train and validation datasets, for example:
-
+Fine-tune a `GPT-2` model with this script:
+```bash
+python finetune.py \
+    --data_dir data/cell_sentences/ \
+    --output_dir <your_output_dir> \
+    --model_name gpt2 \
+    --num_train_epochs 10 \
+    --evaluation_strategy "no" \
+    --gradient_accumulation_steps 4 \
+    --per_device_train_batch_size 16 \
+    --per_device_eval_batch_size 16 \
+    --fp16 True \
+    --logging_steps 100 \
+    --save_steps 500
 ```
-{
-    'train': <PATH_TO_TRAINING_DATASET>,
-    'val': <PATH_TO_VALIDATION_DATASET>
+> By default, models are saved to the `data/model/` directory. Edit the `--data_dir` value to point to your own data directory if needed.
+
+Switch the `model_name` key to any other models you'd like to try. Note that you may need to adjust the `per_device_batch_size`, `gradient_accumulation_steps`, and `gradient_checkpointing` parameters if you employ larger models. The default configuration is provided for training on a Nvidia A5000 GPU.
+
+## Authors
+All members of the team that produced Cell2
+
+## Citation
+Please cite the cell2sentence paper if you this repo.
+```bibtex
+@article {Levine2023.09.11.557287,
+	author = {Daniel Levine and Syed Asad Rizvi and Sacha L{\'e}vy and Nazreen Pallikkavaliyaveetil MohammedSheriff and Ruiming Wu and Zihe Zhang and Antonio Fonseca and Xingyu Chen and Sina Ghadermarzi and Rahul M. Dhodapkar and David van Dijk},
+	title = {Cell2Sentence: Teaching Large Language Models the Language of Biology},
+	elocation-id = {2023.09.11.557287},
+	year = {2023},
+	doi = {10.1101/2023.09.11.557287},
+	publisher = {Cold Spring Harbor Laboratory},
+	URL = {https://www.biorxiv.org/content/early/2023/09/14/2023.09.11.557287},
+	eprint = {https://www.biorxiv.org/content/early/2023/09/14/2023.09.11.557287.full.pdf},
+	journal = {bioRxiv}
 }
 ```
 
-Then to train Hugging Face's GPT-2 small model using our fine-tuning script, run:
-
-```
-python finetune.py \
-    --output_dir <OUTPUT_DIRECTORY> \
-    --datasets_paths <PATH_TO_DATASET_PATHS_JSON> \
-    --model_name gpt2 \
-    --num_train_epochs 100 \
-    --fp16 True \
-    --dataloader_num_workers 2 \
-    --gradient_checkpointing True \
-    --gradient_accumulation_steps 4 \
-    --eval_accumulation_steps 5 \
-    --per_device_train_batch_size 16 \
-    --per_device_eval_batch_size 16 \
-    --logging_steps 100 \
-    --eval_steps 100 \
-    --eval_dataset_size 1000 \
-    --save_steps 500
-```
+## Maintainers
+- Sacha Lévy ([sacha.levy@yale.edu](mailto:sacha.levy@yale.edu))
+- Daniel Levine ([daniel.levine@yale.edu](mailto:daniel.levine@yale.edu))
+- Syed Rizvi ([syed.rizvi@yale.edu](mailto:syed.rizvi@yale.edu))

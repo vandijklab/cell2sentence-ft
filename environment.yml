@@ -26,3 +26,5 @@ dependencies:
   - python-igraph
   - igraph
   - jellyfish
+  - pip:
+    - gdown
