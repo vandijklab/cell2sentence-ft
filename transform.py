@@ -1,8 +1,6 @@
-"""
-This script will load a raw single-cell dataset, preprocess and normalize the data, and then
-run the conversion to cell sentences. Output files will be placed in the same directory.
-"""
 import os
+import argparse
+from pathlib import Path
 
 import anndata
 import numpy as np
@@ -10,19 +8,15 @@ import pandas as pd
 import plotnine as pn
 import scanpy as sc
 import sklearn.linear_model as lm
-from datasets import Dataset
+from datasets import Dataset, load_dataset, concatenate_datasets
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import r2_score
 from sklearn.utils import shuffle
 from tqdm import tqdm
 
-from src.cell2sentence import transforms
-from src.cell2sentence.integrations import xlm_prepare_outpath
+from src import utils
 
-BASE10_THRESHOLD = 3
-RANDOM_SEED = 42
-SUBSAMPLE = False
-NUM_SUBSAMPLE = 10000  # If subsampling raw data, how many cells to keep
+ROW_SUM = 10000
 
 
 def normalize_and_rank_transform(data_matrix_X, normalize=True):
@@ -40,7 +34,7 @@ def normalize_and_rank_transform(data_matrix_X, normalize=True):
     """
     if normalize:
         normalized_data_matrix_X = (
-            np.diag(10000 / np.ravel(np.sum(data_matrix_X, axis=1))) @ data_matrix_X
+            np.diag(ROW_SUM / np.ravel(np.sum(data_matrix_X, axis=1))) @ data_matrix_X
         )
         data_matrix_X = np.asarray(normalized_data_matrix_X)
 
@@ -56,7 +50,7 @@ def normalize_and_rank_transform(data_matrix_X, normalize=True):
     return data_matrix_X, rank_matrix_X
 
 
-def calculate_transformation_metrics(df, plotting_sample_size=10000):
+def evaluate_transformation(df, plotting_sample_size=10000):
     """
     Helper function which takes as input a pandas DataFrame of expression values and
     ranks, and fits a linear regression model to predict back expression value from
@@ -72,18 +66,17 @@ def calculate_transformation_metrics(df, plotting_sample_size=10000):
                                     'preprocessed_rank', 'log_preprocessed_transcript_count',
                                     and 'log_preprocessed_rank'
         plotting_sample_size:   how many values to sample for plotting
-
-    Steps:
-        1. Fit linear regression to predict back expression from log rank
-        2.
-
-
     """
+    eval_output_dir = utils.DATA_DIR / "eval"
+    eval_output_dir.mkdir(exist_ok=True, parents=True)
+
     # (1) Fit linear regression between log rank (x-axis) and log expression (y-axis)
     x_axis_name = "log_preprocessed_rank"
     y_axis_name = "log_preprocessed_transcript_count"
-    x = np.array(df.loc[df[x_axis_name] < BASE10_THRESHOLD, x_axis_name]).reshape(-1, 1)
-    y = df.loc[df[x_axis_name] < BASE10_THRESHOLD, y_axis_name]
+    x = np.array(df.loc[df[x_axis_name] < utils.BASE10_THRESHOLD, x_axis_name]).reshape(
+        -1, 1
+    )
+    y = df.loc[df[x_axis_name] < utils.BASE10_THRESHOLD, y_axis_name]
 
     reg = lm.LinearRegression().fit(x, y)
 
@@ -101,7 +94,7 @@ def calculate_transformation_metrics(df, plotting_sample_size=10000):
             title="Log Rank vs Log Expression",
         )
     )
-    plot.save(os.path.join(CURRENT_DIR, "plot_log_rank_vs_log_expr.png"), dpi=300)
+    plot.save(os.path.join(eval_output_dir, "plot_log_rank_vs_log_expr.png"), dpi=300)
 
     # (2) Reconstruct expression from log rank, calculate reconstruction performance metrics
     rank_reconstructed_X = reg.predict(
@@ -143,14 +136,16 @@ def calculate_transformation_metrics(df, plotting_sample_size=10000):
         )
     )
     plot.save(
-        os.path.join(CURRENT_DIR, "plot_gt_expr_vs_reconstructed_expr_from_rank.png"),
+        os.path.join(
+            eval_output_dir, "plot_gt_expr_vs_reconstructed_expr_from_rank.png"
+        ),
         dpi=300,
     )
 
     # 3. Create results dataframe and return
     metrics_df = pd.DataFrame(
         {
-            "threshold": [BASE10_THRESHOLD],
+            "threshold": [utils.BASE10_THRESHOLD],
             "slope": [reg.coef_.item()],
             "intercept": [reg.intercept_.item()],
             "R^2": [r_squared_score.item()],
@@ -161,34 +156,30 @@ def calculate_transformation_metrics(df, plotting_sample_size=10000):
         }
     )
     metrics_df.to_csv(
-        os.path.join(CURRENT_DIR, "transformation_metrics_and_parameters.csv")
+        os.path.join(eval_output_dir, "transformation_metrics_and_parameters.csv")
     )
 
 
-def main():
-    # --- Load data ---#
-    print("Loading raw data...")
-    adata = anndata.read_h5ad(DATA_PATH)
+def main(data_filepath: Path, output_dir: Path):
+    """Apply preprocessing steps and transform to cell sentences.
 
-    # Raw transcript counts may be contained in the .raw attribute
-    if adata.raw is not None:
+    Preprocessing follows https://scanpy-tutorials.readthedocs.io/en/latest/pbmc3k.html.
+    """
+    print(f"Loading data from {data_filepath}.")
+    adata = anndata.read_h5ad(data_filepath)
+
+    # reach for raw transcript counts in the .raw attribute
+    if hasattr(adata, "raw") and adata.raw is not None:
         adata.X = adata.raw.X
+    print(f"Done loading data for {len(adata)} cells.")
 
-    # Key 'feature_name' contains the names of each gene. Make gene names the index of adata.var
+    # re-index gene names
     adata.var["feature_name"] = adata.var["feature_name"].astype(str)
     adata.var["ensembl_ids"] = adata.var.index
-    adata.var_names = adata.var["feature_name"]  # Changes .var index
+    adata.var_names = adata.var["feature_name"]
     adata.var_names_make_unique(join="_")
 
-    print(f"Done loading data: {adata}")
-
-    # Subsample if processing a subset of the raw data
-    if SUBSAMPLE:
-        print(f"\nSubsampling adata to {NUM_SUBSAMPLE} samples.")
-        sc.pp.subsample(adata, n_obs=NUM_SUBSAMPLE, random_state=RANDOM_SEED)
-
-    # --- Standard Filtering Steps: https://scanpy-tutorials.readthedocs.io/en/latest/pbmc3k.html ---#
-    print(f"\nFiltering: starting with data shape: {adata.shape}")
+    # filter cells & genes below minimum occurence threshold
     sc.pp.filter_cells(adata, min_genes=200)
     sc.pp.filter_genes(adata, min_cells=3)
 
@@ -199,19 +190,17 @@ def main():
     )
 
     adata = adata[adata.obs.n_genes_by_counts < 2500, :]
-    adata = adata[adata.obs.pct_counts_mt < 20, :]
+    adata = adata[adata.obs.pct_counts_mt < 200, :]
+    print(f"Done filtering cells, remaining data of shape {adata.shape}.")
 
-    print(f"Filtering finished, shape: {adata.shape}")
-
-    # --- Normalization and Rank Transformation ---#
-    print("\nNormalization and Rank Transformation")
     raw_X = np.copy(adata.X.toarray())
     norm_X, rank_norm_X = normalize_and_rank_transform(
         np.copy(adata.X.todense()), normalize=True
     )
-    adata.X = np.log10(1 + norm_X)  # Update adata object with normalized expression
+    # update adata object with normalized expression
+    adata.X = np.log10(1 + norm_X)
 
-    # Create dataframe of ranks and expression values for plotting
+    # create dataframe of ranks and expression values for plotting
     expr_and_rank_df = pd.DataFrame(
         {
             "raw_transcript_count": np.ravel(raw_X),
@@ -221,25 +210,71 @@ def main():
             "log_preprocessed_rank": np.log10(1 + np.ravel(rank_norm_X)),
         }
     )
-    # Remove rows where raw expression is 0
+    # remove 0 expression entries in the cellxgene matrix
     expr_and_rank_df = expr_and_rank_df[expr_and_rank_df["raw_transcript_count"] != 0]
+    print(f"Done normalizing data, {len(expr_and_rank_df)} data points remaining.")
 
-    # --- Plot Scatterplots, Benchmark Relationship Between Rank and Expression ---#
-    print("\nPlotting and Benchmarking starting...")
-    calculate_transformation_metrics(df=expr_and_rank_df, plotting_sample_size=10000)
+    # compute metrics for transformation to cells and back
+    evaluate_transformation(df=expr_and_rank_df, plotting_sample_size=10000)
 
-    # --- Create Cell Sentences, Save to Disk ---#
-    print("\nFinished. Writing cell sentences and adata to disk...")
-    adata.write_h5ad(os.path.join(CURRENT_DIR, "preprocessed_adata.h5ad"))
-    csdata = transforms.csdata_from_adata(adata)
-    xlm_prepare_outpath(
-        csdata, os.path.join(CURRENT_DIR, "cell_sentences"), species_tag="human"
+    preprocessed_output_filepath = data_filepath.parent / (
+        data_filepath.stem + data_filepath.suffix.replace(".h5ad", "_preprocessed.h5ad")
     )
+    print(f"Saving preprocessed transcript counts to {preprocessed_output_filepath}.")
+    adata.write_h5ad(preprocessed_output_filepath)
 
-    print("Done.")
+    # convert the adata into ranked sequences of gene names ("cell sentences")
+    csdata = utils.csdata_from_adata(adata)
+
+    # make text files containing the cell sentences
+    txt_output_dir = utils.DATA_DIR / "cell_sentences"
+    txt_output_dir.mkdir(exist_ok=True, parents=True)
+    utils.xlm_prepare_outpath(csdata, output_dir, species_tag="human")
+    print(f"Done writing cell sentences to file.")
+
+    # make arrow-formatted dataset compatible with HuggingFace's datasets
+    hf_output_dir = utils.DATA_DIR / "cell_sentences_hf"
+    hf_output_dir.mkdir(exist_ok=True, parents=True)
+    data_splits = ["train", "valid", "test"]
+    data_files = {
+        data_split: str(txt_output_dir / f"{data_split}_human.txt")
+        for data_split in data_splits
+    }
+    dataset = load_dataset("text", data_files=data_files)
+
+    # load cell type labels if available with transcript counts
+    for data_split in data_splits:
+        dataset[data_split] = dataset[data_split].rename_column("text", "input_ids")
+        # retrieve split chunk from preprocessed transcript counts
+        dataset_split_sample_indices = np.load(
+            txt_output_dir / f"{data_split}_partition_indices.npy"
+        )
+        adata_split = adata[dataset_split_sample_indices, :].copy()
+        if "cell_type" in adata_split.obs.columns:
+            cell_type_labels = {"cell_type": adata_split.obs["cell_type"].tolist()}
+            cell_type_dataset = Dataset.from_dict(cell_type_labels)
+            dataset[data_split] = concatenate_datasets(
+                [dataset[data_split], cell_type_dataset], axis=1
+            )
+
+    dataset.save_to_disk(hf_output_dir)
+    print(f"Done transforming data to cell sentences.")
 
 
 if __name__ == "__main__":
-    CURRENT_DIR = os.getcwd()
-    DATA_PATH = os.path.join(CURRENT_DIR, "raw_data_subset.h5ad")
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--data_filepath",
+        type=Path,
+        help="Input data filepath.",
+        default=utils.DATA_DIR / "dominguez_sample.h5ad",
+    )
+    parser.add_argument(
+        "--output_dir",
+        type=Path,
+        help="Output directory filepath.",
+        default=utils.DATA_DIR / "cell_sentences",
+    )
+    args = parser.parse_args()
+
+    main(args.data_filepath, args.output_dir)

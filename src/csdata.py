@@ -1,7 +1,3 @@
-"""
-Main data wrapper class definition
-"""
-
 #
 # @author Rahul Dhodapkar
 #

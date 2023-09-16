@@ -25,7 +25,7 @@ from transformers import (
     TrainingArguments,
 )
 
-from utils.templates import construct_cell_type_template, construct_prediction_template
+from src.prompts import construct_cell_type_template, construct_prediction_template
 
 LOG_LEVELS = {
     "debug": logging.DEBUG,
@@ -66,7 +66,7 @@ class CustomTrainingArguments:
         metadata={"help": "Number of samples to use from evaluation dataset."},
     )
     evaluation_strategy: str = field(
-        default="steps",
+        default="no",
         metadata={"help": "Whether to evaluate on steps, epochs, or none."},
     )
     eval_steps: int = field(
@@ -80,7 +80,7 @@ class CustomTrainingArguments:
         metadata={"help": "Number of evaluation steps before offloading to CPU."},
     )
     output_dir: str = field(
-        default="<OUTPUT_DIRECTORY>",
+        default="data/model/",
         metadata={"help": "Output directory for training runs."},
     )
     overwrite_output_dir: bool = field(
@@ -162,9 +162,9 @@ class CustomTrainingArguments:
             "help": "Number of training steps before logging, where steps is the number of gradient unpdates."
         },
     )
-    datasets_paths: str = field(
-        default="<PATH_TO_DATASET_PATHS_JSON>",
-        metadata={"help": "Path to json file where datasets are located."},
+    data_dir: str = field(
+        default="data/cell_sentences_hf/",
+        metadata={"help": "Input directory for dataset."},
     )
     wandb_logging: bool = field(
         default=False, metadata={"help": "Whether to log to wandb."}
@@ -194,7 +194,6 @@ def main():
     logger.info(f"\nLOCAL RANK: {LOCAL_RANK}")
 
     assert torch.cuda.is_available(), "CUDA unavailable"
-
     device = torch.device("cuda")
 
     parser = HfArgumentParser((CustomTrainingArguments,))
@@ -223,15 +222,11 @@ def main():
         training_args.torchdynamo = None
         training_args.torch_compile_backend = None
 
-    # Get train and val dataset paths from json file and load datasets
-    with open(training_args.datasets_paths, "r") as f:
-        file_type_to_name = json.load(f)
-
-    train_dataset = load_from_disk(file_type_to_name["train"])
-    train_dataset = train_dataset.shuffle(seed=training_args.seed)
-
-    val_dataset = load_from_disk(file_type_to_name["val"])
-    val_dataset = val_dataset.shuffle(seed=training_args.seed)
+    # load arrow datasets from dir
+    dataset = load_from_disk(training_args.data_dir)
+    train_dataset, val_dataset = dataset["train"].shuffle(
+        seed=training_args.seed
+    ), dataset["valid"].shuffle(seed=training_args.seed)
 
     if LOCAL_RANK == 0:
         logger.info(f"\nLENGTH OF TRAIN DATASET: {len(train_dataset)}")
@@ -247,9 +242,6 @@ def main():
         tokenizer.pad_token = tokenizer.eos_token
 
     model = AutoModelForCausalLM.from_pretrained(training_args.model_name).to(device)
-
-    model.save_pretrained(training_args.output_dir)
-    tokenizer.save_pretrained(training_args.output_dir)
 
     # Get current time and initialize wandb
     now = datetime.now()
@@ -301,7 +293,8 @@ def main():
 
     train_dataset = train_dataset.map(preprocess_function, batched=True)
     val_dataset = val_dataset.map(preprocess_function, batched=True)
-    val_dataset = val_dataset.select(range(training_args.eval_dataset_size))
+    if training_args.evaluation_strategy != "no":
+        val_dataset = val_dataset.select(range(training_args.eval_dataset_size))
 
     # Collate function for training.
     def data_collator(examples):

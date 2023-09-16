@@ -24,5 +24,8 @@ dependencies:
   - torchvision
   - pytorch-cuda=11.7
   - python-igraph
+  - accelerate
   - igraph
   - jellyfish
+  - pip:
+    - gdown
