@@ -1,154 +1,208 @@
-import random
+#
+# @author Rahul Dhodapkar <rahul.dhodapkar@yale.edu>
+#
+
+import os
+import sys
+from collections import OrderedDict
+from pathlib import Path
+
+import numpy as np
+from scipy import sparse
+from sklearn.utils import shuffle
+from tqdm import tqdm
+
+from src.csdata import CSData
+
+DATA_DIR = Path("data/")
+DATA_DIR.mkdir(exist_ok=True, parents=True)
+
+BASE10_THRESHOLD = 3
+SEED = 42
 
 
-def construct_cell_type_template(cell_type):
-    vowels = {"a", "e", "i", "o", "u", "A", "E", "I", "O", "U"}
-    if cell_type[0] in vowels:
-        cell_type = f"n {cell_type}"
-    else:
-        cell_type = f" {cell_type}"
+def generate_vocabulary(adata):
+    """
+    Create a vocabulary dictionary, where each key represents a single gene
+    token and the value represents the number of non-zero cells in the provided
+    count matrix.
 
-    cell_type_templates = [
-        "List the initial 100 genes associated with a{}: ",
-        "Provide the top 100 genes for a{}: ",
-        "Identify 100 genes corresponding to a{}: ",
-        "Catalog the 100 primary genes for a{}: ",
-        "Name the first set of 100 genes in a{}: ",
-        "Outline 100 genes initially associated with a{}: ",
-        "Specify the first 100 genes linked to a{}: ",
-        "Show the leading 100 genes of a{}: ",
-        "Enumerate the 100 starting genes for a{}: ",
-        "List the 100 most highly expressed genes in a{}, ordered from highest to lowest expression: ",
-        "Provide a ranking of the top 100 expressed genes in a{} by decreasing levels: ",
-        "Detail the 100 genes with the greatest expression levels in a{}: ",
-        "Identify the 100 genes in a{} with the highest expression, sorted in descending order: ",
-        "Catalog the 100 most active genes in a{} cell, ordered by decreasing expression: ",
-        "Name the 100 genes with peak expression levels in a{}, from highest to lowest: ",
-        "Describe the 100 most abundantly expressed genes in a{}, in descending order: ",
-        "Which 100 genes have the highest expression in a{}? List them in descending order: ",
-        "Show the 100 most significantly expressed genes in a{}, organized by decreasing levels: ",
-        "Enumerate the 100 genes with the strongest expression in a{}, ranked from highest to lowest: ",
-        "List the top 100 genes by decreasing expression specifically for a{}: ",
-        "Provide the first 100 highly expressed genes in a{}, sorted by expression level: ",
-        "Identify the initial 100 genes with peak expression levels in a{}: ",
-        "Catalog the top 100 expressed genes corresponding to a{}, from highest to lowest: ",
-        "What are the first 100 genes with the greatest expression in a{}? ",
-        "Name the top 100 genes sorted by decreasing expression for a{}: ",
-        "Show the leading 100 genes by expression level associated with a{}: ",
-        "Enumerate the first 100 genes by highest expression levels in a{}: ",
-        "Specify the 100 primary genes in a{} ordered by decreasing expression: ",
-        "Outline the initial set of 100 genes with high expression in a{}: ",
-        "Detail the 100 starting genes for a{}, ranked by expression level: ",
-        "Rank the first 100 genes by expression level found in a{}: ",
-        "Describe the 100 most active genes initially associated with a{}: ",
-        "Which are the first 100 genes in a{} sorted by decreasing expression? ",
-        "Provide a ranking of the initial 100 genes by decreasing expression levels in a{}: ",
-        "List 100 primary genes from highest to lowest expression in a{}: ",
-        "Catalog the 100 initial genes for a{}, ordered by expression level from highest to lowest: ",
-        "Identify the 100 leading genes in a{} based on expression levels: ",
-        "Show the 100 primary genes for a{}, sorted by decreasing expression: ",
-        "Enumerate the 100 most abundantly expressed starting genes in a{}: ",
-    ]
+    Arguments:
+        adata: an AnnData object to generate cell sentences from. Expects that
+               `obs` correspond to cells and `vars` correspond to genes.
+    Return:
+        a dictionary of gene vocabulary
+    """
+    if len(adata.var) > len(adata.obs):
+        print(
+            (
+                "WARN: more variables ({}) than observations ({})... "
+                + "did you mean to transpose the object (e.g. adata.T)?"
+            ).format(len(adata.var), len(adata.obs)),
+            file=sys.stderr,
+        )
 
-    selected_template = random.choice(cell_type_templates)
+    vocabulary = OrderedDict()
+    gene_sums = np.ravel(np.sum(adata.X > 0, axis=0))
 
-    formatted_template = selected_template.format(cell_type)
+    for i, name in enumerate(adata.var_names):
+        vocabulary[name] = gene_sums[i]
 
-    return formatted_template
+    return vocabulary
 
 
-def construct_prediction_template(genes):
-    initial_prompt_templates = [
-        "Identify the cell type most likely associated with these 100 highly expressed genes listed in descending order.",
-        "Determine the probable cell type for the following 100 genes with the highest expression levels.",
-        "Indicate the cell type typically linked to these 100 top-expressed genes.",
-        "Specify the most likely cell type based on these 100 genes sorted by decreasing expression.",
-        "Find the cell type that corresponds to these top 100 highly expressed genes.",
-        "Point out the cell type these 100 genes with peak expression levels most commonly represent.",
-        "Deduce the cell type likely to have these 100 highly expressed genes.",
-        "Pinpoint the cell type that these 100 genes with the highest expression levels are most likely associated with.",
-        "Ascertain the cell type from which these 100 highly expressed genes likely originate.",
-        "Reveal the likely cell type linked to these 100 genes, listed by decreasing expression levels.",
-        "Uncover the most probable cell type related to these 100 highly expressed genes.",
-        "Indicate the cell type that would logically have these 100 top-expressed genes.",
-        "Provide the likely cell type based on these 100 genes with high expression levels.",
-        "Isolate the cell type commonly associated with these 100 top genes.",
-        "Establish the cell type that these 100 genes with the highest expression levels are most likely from.",
-        "Discern the likely cell type for these 100 genes sorted by expression level.",
-        "Note the cell type typically associated with these 100 most expressed genes.",
-        "Report the cell type most probably linked to these 100 genes with peak expression.",
-        "Conclude the most likely cell type these 100 genes are associated with.",
-        "State the probable cell type connected to these 100 top-expressed genes.",
-        "What cell type is most likely represented by these top 100 highly expressed genes?",
-        "Identify the probable cell type for these 100 genes with the highest expression levels.",
-        "Which cell type is typically associated with these 100 most expressed genes?",
-        "Can you deduce the cell type based on this list of 100 highly expressed genes?",
-        "Given these 100 genes sorted by decreasing expression, what is the likely cell type?",
-        "Based on these top 100 genes, which cell type are they most commonly found in?",
-        "What type of cell is most likely to express these 100 genes in decreasing order of expression?",
-        "What is the probable cell type these 100 highly expressed genes are associated with?",
-        "From which cell type do these 100 most expressed genes likely originate?",
-        "Determine the cell type likely associated with these 100 genes listed by decreasing expression.",
-        "Given these 100 highly expressed genes, can you identify the likely cell type?",
-        "Infer the cell type based on these 100 genes with the highest expression levels.",
-        "Which cell type is likely to have these 100 genes with the highest expression?",
-        "Could you specify the cell type most likely associated with these top 100 genes?",
-        "What cell type would you associate with these 100 highly expressed genes?",
-        "Can you tell the likely cell type for these 100 genes, sorted by decreasing expression?",
-        "What is the likely cell type based on these 100 top expressed genes?",
-        "Identify the cell type most commonly associated with these 100 genes.",
-        "Based on these genes listed by decreasing expression, what cell type are they likely from?",
-        "Given these 100 genes with high expression levels, what is the probable cell type?",
-        "Which cell type is expected to have these 100 genes with the highest levels of expression?",
-        "What is the most probable cell type based on these 100 genes with peak expression levels?",
-        "What cell type would most likely have these 100 top expressed genes?",
-        "Which cell type most probably corresponds to these 100 highly expressed genes?",
-        "Could you determine the likely cell type based on these 100 most expressed genes?",
-        "What type of cell would most likely contain these 100 genes with highest expression?",
-        "Based on the list of 100 genes, what is the most likely corresponding cell type?",
-        "Please identify the cell type that these 100 highly expressed genes are most likely linked to.",
-        "Given these 100 genes ranked by expression, what would be the associated cell type?",
-        "What would be the probable cell type for these 100 genes, listed by decreasing expression?",
-        "Can you deduce the most likely cell type for these top 100 highly expressed genes?",
-        "Identify the likely cell type these 100 genes with top expression could represent.",
-        "Based on the following 100 genes, can you determine the cell type they are commonly found in?",
-        "What is the likely originating cell type of these 100 top expressed genes?",
-        "Specify the cell type most commonly linked with these 100 highly expressed genes.",
-        "Which cell type would you expect to find these 100 genes with high expression levels?",
-        "Indicate the probable cell type these 100 genes are commonly associated with.",
-        "According to these 100 genes with highest expression, what cell type are they most likely from?",
-        "Which cell type is these 100 genes with the highest expression levels most commonly found in?",
-        "Could you point out the likely cell type linked with these 100 genes sorted by decreasing expression?",
-    ]
+def generate_sentences(adata, prefix_len=None, random_state=42):
+    """
+    Transform expression matrix to sentences. Sentences contain gene "words"
+    denoting genes with non-zero expression. Genes are ordered from highest
+    expression to lowest expression.
 
-    prediction_templates = [
-        "This is the cell type corresponding to these genes: ",
-        "These genes are most likely associated with the following cell type: ",
-        "This is the probable cell type for these genes: ",
-        "Based on these genes, the corresponding cell type is: ",
-        "These genes suggest the cell type is most likely: ",
-        "These genes are indicative of the cell type: ",
-        "The associated cell type for these genes appears to be: ",
-        "These genes typically correspond to: ",
-        "The expected cell type based on these genes is: ",
-        "These genes are commonly found in: ",
-        "The cell type that these genes are most commonly linked with is: ",
-        "Based on the expression levels, the cell type would likely be: ",
-        "The genes provided are most commonly expressed in: ",
-        "Given these genes, the likely corresponding cell type is: ",
-        "The cell type these genes most likely originate from is: ",
-        "These genes are most frequently associated with the cell type: ",
-        "From these genes, it can be inferred that the cell type is: ",
-        "The cell type best represented by these genes is: ",
-    ]
+    Arguments:
+        adata: an AnnData object to generate cell sentences from. Expects that
+               `obs` correspond to cells and `vars` correspond to genes.
+        random_state: sets the numpy random state for splitting ties
+    Return:
+        a `numpy.ndarray` of sentences, split by delimiter.
+    """
+    np.random.seed(random_state)
 
-    # build prompt
+    if len(adata.var) > len(adata.obs):
+        print(
+            (
+                "WARN: more variables ({}) than observations ({}), "
+                + "did you mean to transpose the object (e.g. adata.T)?"
+            ).format(len(adata.var), len(adata.obs)),
+            file=sys.stderr,
+        )
 
-    selected_initial_template = random.choice(initial_prompt_templates)
-    selected_prediction_template = random.choice(prediction_templates)
+    mat = sparse.csr_matrix(adata.X)
+    sentences = []
+    for i in tqdm(range(mat.shape[0])):
+        cols = mat.indices[mat.indptr[i] : mat.indptr[i + 1]]
+        vals = mat.data[mat.indptr[i] : mat.indptr[i + 1]]
 
-    formatted_template = (
-        selected_initial_template + " " + genes + " " + selected_prediction_template
+        cols, vals = shuffle(cols, vals)
+
+        sentences.append(
+            "".join([chr(x) for x in cols[np.argsort(-vals, kind="stable")]])
+        )
+
+    if prefix_len is not None:
+        sentences = [s[:prefix_len] for s in sentences]
+
+    return np.array(sentences, dtype=object)
+
+
+def csdata_from_adata(adata, prefix_len=None, random_state=42):
+    """
+    Generate a CSData object from an AnnData object.
+
+    Arguments:
+        adata: an AnnData object to generate cell sentences from. Expects that
+               `obs` correspond to cells and `vars` correspond to genes.
+        prefix_len: consider only rank substrings of length prefix_len
+        random_state: sets the numpy random state for splitting ties
+    Return:
+        a CSData object containing a vocabulary, sentences, and associated name data.
+    """
+    return CSData(
+        vocab=generate_vocabulary(adata),
+        sentences=generate_sentences(
+            adata, prefix_len=prefix_len, random_state=random_state
+        ),
+        cell_names=adata.obs_names,
+        feature_names=adata.var_names,
     )
 
-    return formatted_template
+
+def xlm_prepare_outpath(csdata, outpath, species_tag, params=None):
+    """
+    Write formatted data to the outpath file location, for direct processing
+    by the XLM monolinguistic translation model. If creating an outpath for
+    multiple species, use the same `outpath` with different `species_tag`
+    values. They will not conflict so long as species_tags are appropriately
+    assigned.
+
+    Note that XLM requires a dictionary sorted in order of increasing
+    frequency of occurence.
+
+    Arguments:
+        csdata: a CSData object from a single species to be written.
+        outpath: directory to write files to. Will create this directory
+                 if it does not already exist.
+        species_tag: a short string to be used as the species name in XLM.
+                     Fulfills functions analaglous to language tags such as
+                     'en', 'es', or 'zh'.
+        delimiter: default = ' '. A token delimter for the generated sentences.
+        params: a parameter object passed to train_test_validation_split:
+    Return:
+        None
+    """
+
+    if params is None:
+        params = {}
+
+    sentence_strings = csdata.create_sentence_strings(delimiter=" ")
+    train, test, val = csdata.train_test_validation_split(**params)
+
+    train_sentences = sentence_strings[train]
+    test_sentences = sentence_strings[test]
+    val_sentences = sentence_strings[val]
+
+    os.makedirs(outpath, exist_ok=True)
+    np.save(
+        os.path.join(outpath, "train_partition_indices.npy"),
+        np.array(train, dtype=np.int64),
+    )
+    np.save(
+        os.path.join(outpath, "valid_partition_indices.npy"),
+        np.array(val, dtype=np.int64),
+    )
+    np.save(
+        os.path.join(outpath, "test_partition_indices.npy"),
+        np.array(test, dtype=np.int64),
+    )
+
+    print("INFO: Writing Vocabulary File", file=sys.stderr)
+    fn = "{}/vocab_{}.txt".format(outpath, species_tag)
+    with open(fn, "w") as f:
+        for k in tqdm(sorted(csdata.vocab, key=csdata.vocab.get, reverse=True)):
+            if csdata.vocab[k] == 0:
+                continue
+            print("{} {}".format(k, csdata.vocab[k]), file=f)
+
+    print("INFO: Writing Training Sentences", file=sys.stderr)
+    fn = "{}/train_{}.txt".format(outpath, species_tag)
+    with open(fn, "w") as f:
+        for l in tqdm(train_sentences):
+            print(l, file=f)
+
+    print("INFO: Writing Training Cell Barcodes", file=sys.stderr)
+    fn = "{}/train_barcodes_{}.txt".format(outpath, species_tag)
+    with open(fn, "w") as f:
+        for l in tqdm(csdata.cell_names[train]):
+            print(l, file=f)
+
+    print("INFO: Writing Testing Sentences", file=sys.stderr)
+    fn = "{}/test_{}.txt".format(outpath, species_tag)
+    with open(fn, "w") as f:
+        for l in tqdm(test_sentences):
+            print(l, file=f)
+
+    print("INFO: Writing Testing Cell Barcodes", file=sys.stderr)
+    fn = "{}/train_barcodes_{}.txt".format(outpath, species_tag)
+    with open(fn, "w") as f:
+        for l in tqdm(csdata.cell_names[test]):
+            print(l, file=f)
+
+    print("INFO: Writing Validation Sentences", file=sys.stderr)
+    fn = "{}/valid_{}.txt".format(outpath, species_tag)
+    with open(fn, "w") as f:
+        for l in tqdm(val_sentences):
+            print(l, file=f)
+
+    print("INFO: Writing Validation Cell Barcodes", file=sys.stderr)
+    fn = "{}/valid_barcodes_{}.txt".format(outpath, species_tag)
+    with open(fn, "w") as f:
+        for l in tqdm(csdata.cell_names[val]):
+            print(l, file=f)
