@@ -5,6 +5,8 @@
 
 🎉 **pythia-160m-c2s** trained on full cell sentences is available on the Hugging Face hub [here](https://huggingface.co/vandijklab/pythia-160m-c2s)! This new model generates and predicts cell types from entire cells directly in text with the [Pythia-160 base model](https://huggingface.co/EleutherAI/pythia-160m).
 
+---
+
 Cell2Sentence is a novel method for adapting large language models to single-cell transcriptomics. We transform single-cell RNA sequencing data into sequences of gene names ordered by expression level, termed "cell sentences". This repository provides scripts and examples for converting cells to cell sentences, fine-tuning language models, and converting outputs back to expression values.
 
 ![Overview](https://github.com/vandijklab/cell2sentence-ft/blob/main/assets/overview.png)
