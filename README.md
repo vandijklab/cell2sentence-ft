@@ -3,7 +3,10 @@
 [![DOI:10.1101/2023.09.11.557287](http://img.shields.io/badge/DOI-10.1101/2023.09.11.557287-B31B1B.svg)](https://doi.org/10.1101/2023.09.11.557287)
 [![Python 3.9+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-310/)
 
-**NOTICE**: This repository is a legacy version of the Cell2Sentence code base. We have released a [newer repository](https://github.com/vandijklab/cell2sentence) which makes working with C2S models simpler and more efficient. Please migrate any workflows to use the new code base. This repo will be archived soon and will no longer be available.
+| :exclamation:  This repository is a legacy version of the Cell2Sentence code base. We have released a [newer repository](https://github.com/vandijklab/cell2sentence) which makes working with C2S models simpler and more efficient. Please migrate any workflows to use the new code base. This repo will be archived soon and will no longer be available.   |
+|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+**NOTICE**: 
 
 🎉 (02/15/2024) **pythia-160m-c2s** trained on full cell sentences is available on the Hugging Face hub [here](https://huggingface.co/vandijklab/pythia-160m-c2s)! This new model generates and predicts cell types from entire cells directly in text with the [Pythia-160 base model](https://huggingface.co/EleutherAI/pythia-160m).
 
